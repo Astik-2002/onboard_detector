@@ -3,7 +3,7 @@ project(onboard_detector)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
-set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS} -O3 -Wall")
+set(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -O3 -Wall")
 
 
 ## Find catkin macros and libraries
@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   image_transport
   vision_msgs
+  custom_interface
 )
 
 ## System dependencies are found with CMake's conventions
@@ -125,6 +126,7 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${custom_interface_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library

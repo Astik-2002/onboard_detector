@@ -24,6 +24,8 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <onboard_detector/dbscan.h>
+#include <custom_interface/DynamicPoint.h>
+#include <custom_interface/DynamicPointCloud.h>
 #include <onboard_detector/uvDetector.h>
 #include <onboard_detector/kalmanFilter.h>
 #include <onboard_detector/utils.h>
@@ -54,7 +56,9 @@ namespace onboardDetector{
         image_transport::Publisher uvBirdViewPub_;
         image_transport::Publisher detectedAlignedDepthImgPub_;
         ros::Publisher uvBBoxesPub_;
+        ros::Publisher customDynamicPointsPub_;
         ros::Publisher dynamicPointsPub_;
+        ros::Publisher staticPointsPub_;
         ros::Publisher filteredPointsPub_;
         ros::Publisher dbBBoxesPub_;
         ros::Publisher yoloBBoxesPub_;
@@ -214,9 +218,10 @@ namespace onboardDetector{
         void getKalmanObservationAcc(const onboardDetector::box3D& currDetectedBBox, int bestMatchIdx, MatrixXd& Z);
 
         // visualization
-        void getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc);
+        void getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc, std::vector<Eigen::Vector3d>& staticPc, std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& custom_dynamic_points);
         void publishUVImages(); 
         void publishYoloImages();
+        void publishPointsDynamic(const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> custom_points, const ros::Publisher& publisher);
         void publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher);
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();

@@ -487,6 +487,12 @@ namespace onboardDetector{
         // dynamic pointcloud pub
         this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
 
+        // dynamic pointcloud pub with velocity information
+        this->customDynamicPointsPub_ = this->nh_.advertise<custom_interface::DynamicPointCloud>(this->ns_ + "/dynamic_cloud", 10);
+
+        // segmented static pointcloud
+        this->staticPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/static_cloud", 10);
+
         // filtered pointcloud pub
         this->filteredPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_depth_cloud", 10);
 
@@ -790,10 +796,14 @@ namespace onboardDetector{
     void dynamicDetector::visCB(const ros::TimerEvent&){
         this->publishUVImages();
         this->publish3dBox(this->uvBBoxes_, this->uvBBoxesPub_, 0, 1, 0);
-        std::vector<Eigen::Vector3d> dynamicPoints;
-        this->getDynamicPc(dynamicPoints);
-        this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
+        std::vector<Eigen::Vector3d> dynamicPoints, staticPoints;
+        std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> custom_dynamic_points;
+        this->getDynamicPc(dynamicPoints, staticPoints, custom_dynamic_points);
+        this->publishPointsDynamic(custom_dynamic_points, this->customDynamicPointsPub_);
         this->publishPoints(this->filteredPoints_, this->filteredPointsPub_);
+        this->publishPoints(staticPoints, this->staticPointsPub_);
+        this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
+
         this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
         this->publishYoloImages();
         this->publish3dBox(this->yoloBBoxes_, this->yoloBBoxesPub_, 1, 0, 1);
@@ -1645,17 +1655,25 @@ namespace onboardDetector{
         Z(5) = (Z(3) - prevMatchBBox.Vy)/(this->dt_*k);
     }
  
-    void dynamicDetector::getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc){
+    void dynamicDetector::getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc, std::vector<Eigen::Vector3d>& staticPc, std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& custom_dynamic_points){
         Eigen::Vector3d curPoint;
         for (size_t i=0 ; i<this->filteredPoints_.size() ; ++i){
             curPoint = this->filteredPoints_[i];
-            for (size_t j=0; j<this->dynamicBBoxes_.size() ; ++j){
-                if (abs(curPoint(0)-this->dynamicBBoxes_[j].x)<=this->dynamicBBoxes_[j].x_width/2 and 
-                    abs(curPoint(1)-this->dynamicBBoxes_[j].y)<=this->dynamicBBoxes_[j].y_width/2 and 
-                    abs(curPoint(2)-this->dynamicBBoxes_[j].z)<=this->dynamicBBoxes_[j].z_width/2) {
+            bool is_static = true;
+            for (size_t j=0; j<this->dbBBoxes_.size() ; ++j){
+                if (abs(curPoint(0)-this->dbBBoxes_[j].x)<=(this->dbBBoxes_[j].x_width + 0.2)/2 and 
+                    abs(curPoint(1)-this->dbBBoxes_[j].y)<=(this->dbBBoxes_[j].y_width + 0.2)/2 and 
+                    abs(curPoint(2)-this->dbBBoxes_[j].z)<=(this->dbBBoxes_[j].z_width + 0.2)/2) {
+                        Eigen::Vector3d vel{this->dbBBoxes_[j].Vx, this->dbBBoxes_[j].Vy, 0.0};
                         dynamicPc.push_back(curPoint);
+                        custom_dynamic_points.emplace_back(curPoint, vel);
+                        is_static = false;
                         break;
                     }
+            }
+            if(is_static)
+            {
+                staticPc.push_back(curPoint);
             }
         }
     } 
@@ -1694,6 +1712,26 @@ namespace onboardDetector{
         publisher.publish(cloudMsg);
     }
 
+    void dynamicDetector::publishPointsDynamic(const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> custom_points, const ros::Publisher& publisher){
+        custom_interface::DynamicPointCloud dyn_msg;
+        dyn_msg.header.frame_id = "map";
+        dyn_msg.header.stamp = ros::Time::now();
+
+        for (const auto& [pos, vel] : custom_points)
+        {
+            custom_interface::DynamicPoint dp;
+            dp.position.x = pos.x();
+            dp.position.y = pos.y();
+            dp.position.z = pos.z();
+
+            dp.velocity.x = vel.x();
+            dp.velocity.y = vel.y();
+            dp.velocity.z = vel.z();
+
+            dyn_msg.points.push_back(dp);
+        }
+        publisher.publish(dyn_msg);
+    }
 
     void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes, const ros::Publisher& publisher, double r, double g, double b) {
         // visualization using bounding boxes 

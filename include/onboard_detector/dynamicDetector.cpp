@@ -488,7 +488,7 @@ namespace onboardDetector{
         this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
 
         // dynamic pointcloud pub with velocity information
-        this->customDynamicPointsPub_ = this->nh_.advertise<custom_interface::DynamicPointCloud>(this->ns_ + "/dynamic_cloud", 10);
+        this->customDynamicPointsPub_ = this->nh_.advertise<custom_interface::DynamicPointCloud>(this->ns_ + "/dynamic_custom_cloud", 10);
 
         // segmented static pointcloud
         this->staticPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/static_cloud", 10);
@@ -577,6 +577,17 @@ namespace onboardDetector{
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
         this->positionColor_(2) = camPoseColorMatrix(2, 3);
         this->orientationColor_ = camPoseColorMatrix.block<3, 3>(0, 0);
+
+        geometry_msgs::TransformStamped odom_to_base;
+        odom_to_base.header = pose->header;
+        odom_to_base.header.frame_id = "map";
+        odom_to_base.child_frame_id = "base_link";
+        odom_to_base.transform.translation.x = pose->pose.position.x;
+        odom_to_base.transform.translation.y = pose->pose.position.y;
+        odom_to_base.transform.translation.z = pose->pose.position.z;
+        odom_to_base.transform.rotation = pose->pose.orientation;
+        tf_broadcaster_.sendTransform(odom_to_base);
+
     }
 
     void dynamicDetector::depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom){

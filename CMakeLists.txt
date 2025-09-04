@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   cv_bridge
+  tf2_ros
   message_filters
   image_transport
   vision_msgs

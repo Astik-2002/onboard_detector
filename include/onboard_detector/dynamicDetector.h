@@ -28,9 +28,13 @@
 #include <onboard_detector/dbscan.h>
 #include <custom_interface/DynamicPoint.h>
 #include <custom_interface/DynamicPointCloud.h>
+#include <custom_interface/DynamicBbox.h>
+#include <custom_interface/BoundingBoxArray.h>
 #include <onboard_detector/uvDetector.h>
 #include <onboard_detector/kalmanFilter.h>
 #include <onboard_detector/utils.h>
+#include <obj_state_msgs/ObjectsStates.h>
+#include <obj_state_msgs/State.h>
 
 namespace onboardDetector{
     class dynamicDetector{
@@ -59,6 +63,8 @@ namespace onboardDetector{
         image_transport::Publisher detectedAlignedDepthImgPub_;
         ros::Publisher uvBBoxesPub_;
         ros::Publisher customDynamicPointsPub_;
+        ros::Publisher Autofly_obs_state_pub_;
+        ros::Publisher SPOT_obs_state_pub_;
         ros::Publisher dynamicPointsPub_;
         ros::Publisher staticPointsPub_;
         ros::Publisher filteredPointsPub_;
@@ -229,6 +235,7 @@ namespace onboardDetector{
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();
         void publishVelVis();
+        void publishAutoflyBbox(const std::vector<box3D> & boxes, const ros::Publisher& publisher1, const ros::Publisher& publisher2);
 
         // helper function
         void transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

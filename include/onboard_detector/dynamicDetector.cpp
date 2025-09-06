@@ -484,6 +484,11 @@ namespace onboardDetector{
         // uv detector bounding box pub
         this->uvBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/uv_bboxes", 10);
 
+        // Autofly sim testing: 
+        this->Autofly_obs_state_pub_ = this->nh_.advertise<obj_state_msgs::ObjectsStates>(this->ns_ + "/obj_states", 10);
+
+        this->SPOT_obs_state_pub_ = this->nh_.advertise<custom_interface::BoundingBoxArray>(this->ns_ + "/dynamic_obs_state", 10);
+
         // dynamic pointcloud pub
         this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
 
@@ -811,6 +816,7 @@ namespace onboardDetector{
         std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> custom_dynamic_points;
         this->getDynamicPc(dynamicPoints, staticPoints, custom_dynamic_points);
         this->publishPointsDynamic(custom_dynamic_points, this->customDynamicPointsPub_);
+        this->publishAutoflyBbox(this->dbBBoxes_, Autofly_obs_state_pub_, SPOT_obs_state_pub_);
         this->publishPoints(this->filteredPoints_, this->filteredPointsPub_);
         this->publishPoints(staticPoints, this->staticPointsPub_);
         this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
@@ -818,6 +824,7 @@ namespace onboardDetector{
         this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
         this->publishYoloImages();
         this->publish3dBox(this->yoloBBoxes_, this->yoloBBoxesPub_, 1, 0, 1);
+
         this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
         this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
@@ -1671,16 +1678,22 @@ namespace onboardDetector{
         for (size_t i=0 ; i<this->filteredPoints_.size() ; ++i){
             curPoint = this->filteredPoints_[i];
             bool is_static = true;
-            for (size_t j=0; j<this->dbBBoxes_.size() ; ++j){
-                if (abs(curPoint(0)-this->dbBBoxes_[j].x)<=(this->dbBBoxes_[j].x_width + 0.2)/2 and 
+            for (size_t j=0; j<this->dbBBoxes_.size() ; ++j)
+            {
+                Eigen::Vector3d vel{this->dbBBoxes_[j].Vx, this->dbBBoxes_[j].Vy, 0.0};
+                double vel_norm = sqrt(pow(vel[0], 2) + pow(vel[1], 2));
+                if(vel_norm > 0.1)
+                {
+                    if (abs(curPoint(0)-this->dbBBoxes_[j].x)<=(this->dbBBoxes_[j].x_width + 0.2)/2 and 
                     abs(curPoint(1)-this->dbBBoxes_[j].y)<=(this->dbBBoxes_[j].y_width + 0.2)/2 and 
-                    abs(curPoint(2)-this->dbBBoxes_[j].z)<=(this->dbBBoxes_[j].z_width + 0.2)/2) {
-                        Eigen::Vector3d vel{this->dbBBoxes_[j].Vx, this->dbBBoxes_[j].Vy, 0.0};
+                    abs(curPoint(2)-this->dbBBoxes_[j].z)<=(this->dbBBoxes_[j].z_width + 0.2)/2) 
+                    {
                         dynamicPc.push_back(curPoint);
                         custom_dynamic_points.emplace_back(curPoint, vel);
                         is_static = false;
                         break;
                     }
+                }
             }
             if(is_static)
             {
@@ -1742,6 +1755,52 @@ namespace onboardDetector{
             dyn_msg.points.push_back(dp);
         }
         publisher.publish(dyn_msg);
+    }
+
+    void dynamicDetector::publishAutoflyBbox(const std::vector<box3D> & boxes, const ros::Publisher& publisher1, const ros::Publisher& publisher2) {
+        obj_state_msgs::ObjectsStates bbox_msg;
+        custom_interface::BoundingBoxArray bbox_spot_array;
+        bbox_msg.header.stamp = ros::Time::now();
+        bbox_msg.header.frame_id = "map";   // or your world frame
+
+        for (const auto &b : boxes) {
+            obj_state_msgs::State state;
+            custom_interface::DynamicBbox bbox_spot;
+            // Size of the box
+            state.size.x = b.x_width;
+            state.size.y = b.y_width;
+            state.size.z = b.z_width;
+            bbox_spot.length = b.x_width;
+            bbox_spot.width = b.y_width;
+            bbox_spot.height = b.z_width;
+
+            // Position of the box (center)
+            state.position.x = b.x;
+            state.position.y = b.y;
+            state.position.z = b.z;
+
+            bbox_spot.center_x = b.x;
+            bbox_spot.center_y = b.y;
+            bbox_spot.center_z = b.z;
+            // Velocity
+            state.velocity.x = b.Vx;
+            state.velocity.y = b.Vy;
+            state.velocity.z = 0.0;
+            bbox_spot.velocity_x = b.Vx;
+            bbox_spot.velocity_y = b.Vy;
+            bbox_spot.velocity_z = 0.0;
+
+            // Acceleration (if available, otherwise set 0)
+            state.acceleration.x = b.Ax;
+            state.acceleration.y = b.Ay;
+            state.acceleration.z = 0.0;
+
+            bbox_msg.states.push_back(state);
+            bbox_spot_array.boxes.push_back(bbox_spot);
+        }
+
+        publisher1.publish(bbox_msg);
+        publisher2.publish(bbox_spot_array);
     }
 
     void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes, const ros::Publisher& publisher, double r, double g, double b) {
